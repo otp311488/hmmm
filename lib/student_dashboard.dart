@@ -22,27 +22,41 @@ class _StudentDashboardState extends State<StudentDashboard> {
   String etaMessage = "";
   bool _isRouteAvailable = true;
 
-  // Store the timestamp of the last fetched announcement
   Timestamp? lastFetchedAnnouncementTimestamp;
+
+  final LatLng uetRcetLocation = const LatLng(32.3610, 74.2079);
+  List<Map<String, dynamic>> busDetails = [];
+  List<Map<String, dynamic>> announcements = [];
+  ScrollController scrollController = ScrollController();
+
+  final List<Map<String, dynamic>> routeABusStops = [
+    {"name": "Chanda Qila", "location": LatLng(32.0940, 74.2025), "time": "6:45"},
+    {"name": "Mall of Gujranwala", "location": LatLng(32.1097, 74.1997), "time": "7:35"},
+    {"name": "NADRA", "location": LatLng(32.1370, 74.2091), "time": "7:37"},
+    {"name": "Sheikhupura Mor", "location": LatLng(32.1477, 74.1912), "time": "7:40"},
+    {"name": "Sheranwala Bagh", "location": LatLng(32.1555, 74.1889), "time": "7:42"},
+    {"name": "Sialkoti Gate", "location": LatLng(32.1583, 74.1891), "time": "7:43"},
+    {"name": "Gondlanwala Adda", "location": LatLng(32.1481, 74.1773), "time": "7:45"},
+    {"name": "Larri Adda", "location": LatLng(32.1722, 74.1838), "time": "7:48"},
+    {"name": "KFC", "location": LatLng(32.1877, 74.1944), "time": "7:50"},
+    {"name": "Sharifpura", "location": LatLng(32.1514, 74.1541), "time": "7:52"},
+    {"name": "Shaheenabad", "location": LatLng(32.1878, 74.1739), "time": "7:54"},
+    {"name": "Pindi Bypass", "location": LatLng(32.2044, 74.1739), "time": "7:56"},
+    {"name": "DC Colony", "location": LatLng(32.166351, 74.195900), "time": "8:00"},
+    {"name": "Rahwali", "location": LatLng(32.2479, 74.1680), "time": "8:05"},
+    {"name": "Ghakhar", "location": LatLng(32.3002, 74.1388), "time": "8:13"},
+    {"name": "Ojla Pull", "location": LatLng(32.3372718, 74.1392), "time": "8:17"},
+    {"name": "Kot Inayat Khan", "location": LatLng(32.2100, 74.1400), "time": "8:22"},
+  ];
 
   @override
   void initState() {
     super.initState();
-    fetchAnnouncements(); // Fetch announcements
+    fetchAnnouncements();
     addBusStopMarkers();
-    addUetRcetMarker(); // Add UET RCET marker
-    fetchBusLocations(); // Fetch bus locations
+    addUetRcetMarker();
+    fetchBusLocations();
   }
-
-  final LatLng uetRcetLocation = const LatLng(32.3610, 74.2079);
-  List<Map<String, dynamic>> busDetails = [];
-  List<Map<String, dynamic>> announcements = []; // Store announcements as Map
-  ScrollController scrollController = ScrollController();
-
-  // Bus stops for Route A
-  final List<Map<String, dynamic>> routeABusStops = [
-    // Bus stop data
-  ];
 
   void addBusStopMarkers() {
     setState(() {
@@ -73,12 +87,11 @@ class _StudentDashboardState extends State<StudentDashboard> {
         ),
         icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
       );
-      _stopMarkers["UET RCET"] = uetMarker; // Add to stop markers for simplicity
+      _stopMarkers["UET RCET"] = uetMarker;
     });
   }
 
   void fetchAnnouncements() {
-    // Fetch announcements only after the last fetched timestamp
     Query query = FirebaseFirestore.instance
         .collection('announcements')
         .orderBy('timestamp', descending: true);
@@ -89,7 +102,6 @@ class _StudentDashboardState extends State<StudentDashboard> {
 
     query.snapshots().listen((snapshot) {
       setState(() {
-        // Update the last fetched timestamp to the most recent announcement's timestamp
         if (snapshot.docs.isNotEmpty) {
           lastFetchedAnnouncementTimestamp = snapshot.docs.first['timestamp'];
           announcements = snapshot.docs.map((doc) {
@@ -99,7 +111,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
               'route': doc['route'],
               'timestamp': doc['timestamp'],
             };
-          }).toList(); // Convert to list of maps
+          }).toList();
         }
       });
     });
@@ -124,9 +136,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
           _isRouteAvailable = true;
           for (var doc in snapshot.docs) {
             final data = doc.data();
-            if (data['location'] != null &&
-                data['location']['latitude'] != null &&
-                data['location']['longitude'] != null) {
+            if (data['location'] != null) {
               final LatLng driverPosition = LatLng(
                 data['location']['latitude'],
                 data['location']['longitude'],
@@ -138,9 +148,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
                       uetRcetLocation.latitude,
                       uetRcetLocation.longitude) < 50) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text("Bus ${data['busId']} has reached UET RCET."),
-                  ),
+                  SnackBar(content: Text("Bus ${data['busId']} has reached UET RCET.")),
                 );
                 continue;
               }
@@ -155,7 +163,6 @@ class _StudentDashboardState extends State<StudentDashboard> {
               );
               _busMarkers[data['busId']] = marker;
 
-              // ETA Calculation
               String eta = _calculateETA(driverPosition);
               busDetails.add({
                 'busId': data['busId'],
@@ -164,7 +171,6 @@ class _StudentDashboardState extends State<StudentDashboard> {
                 'stopName': data['stopName'] ?? 'Unknown',
               });
 
-              // OSRM Route Logic - calculate route
               _calculateRoute(uetRcetLocation, driverPosition);
             }
           }
@@ -175,7 +181,6 @@ class _StudentDashboardState extends State<StudentDashboard> {
   }
 
   String _calculateETA(LatLng driverPosition) {
-    // Calculate the distance between the bus and UET RCET location
     double distance = Geolocator.distanceBetween(
       driverPosition.latitude,
       driverPosition.longitude,
@@ -183,10 +188,9 @@ class _StudentDashboardState extends State<StudentDashboard> {
       uetRcetLocation.longitude,
     );
 
-    // Assuming an average speed of 40 km/h
     double timeInHours = distance / 1000 / 40;
     int timeInMinutes = (timeInHours * 60).round();
-    
+
     return timeInMinutes.toString();
   }
 
@@ -255,12 +259,11 @@ class _StudentDashboardState extends State<StudentDashboard> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SingleChildScrollView(  // Make entire body scrollable
+      body: SingleChildScrollView(
         child: Column(
           children: [
-            // Map Section
             Container(
-              height: 400, // Set a fixed height for map view
+              height: 400,
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : GoogleMap(
@@ -272,7 +275,6 @@ class _StudentDashboardState extends State<StudentDashboard> {
                       polylines: _polylines,
                     ),
             ),
-            // Bus Details Section
             busDetails.isNotEmpty
                 ? Column(
                     children: busDetails.map((bus) {
@@ -302,7 +304,6 @@ class _StudentDashboardState extends State<StudentDashboard> {
                       style: GoogleFonts.poppins(fontSize: 16),
                     ),
                   ),
-            // Announcements Section
             announcements.isNotEmpty
                 ? Column(
                     children: announcements.map((announcement) {
